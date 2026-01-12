@@ -1,0 +1,25 @@
+# ===== Unity auto-generated =====
+[Ll]ibrary/
+[Tt]emp/
+[Oo]bj/
+[Bb]uild/
+[Bb]uilds/
+[Ll]ogs/
+[Uu]ser[Ss]ettings/
+MemoryCaptures/
+
+# ===== IDE =====
+.vscode/
+.idea/
+*.csproj
+*.sln
+*.user
+*.userprefs
+
+# ===== OS =====
+.DS_Store
+Thumbs.db
+
+# ===== Android builds =====
+*.apk
+*.aab
