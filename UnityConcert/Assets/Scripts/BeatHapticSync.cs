@@ -24,8 +24,8 @@ public class BeatHapticSync : MonoBehaviour
 
     void Start()
     {
-        LoadCSV();       // CSV는 '초' 단위로 그대로 로드
-        enabled = false; // 기본 비활성
+        LoadCSV();       // Load CSV as-is in seconds
+        enabled = false; // Disabled by default
     }
 
     void Update()
@@ -34,7 +34,7 @@ public class BeatHapticSync : MonoBehaviour
 
         float now = (float)videoPlayer.time + offsetSeconds;
 
-        // 이미 지나간 비트는 건너뛰기 (프레임 스킵/초반 튐 방지)
+        // Skip beats that have already passed (prevents frame skips / initial jumps)
         while (currentIndex < beatTimes.Count && beatTimes[currentIndex] < now - syncThreshold)
             currentIndex++;
 
@@ -42,13 +42,13 @@ public class BeatHapticSync : MonoBehaviour
 
         float beat = beatTimes[currentIndex];
 
-        // 1초에 한두 번 현재-다음비트 차이 찍기 (원인 파악)
+        // Log current–next beat difference once or twice per second (for debugging)
         if ((Time.frameCount % 20) == 0)
             Debug.Log($"[BeatHapticSync] now={now:F3} next={beat:F3} Δ={now - beat:F3} idx={currentIndex}/{beatTimes.Count}");
 
         if (Mathf.Abs(now - beat) <= syncThreshold)
         {
-            // 최소 간격(minGap) 체크 (원한다면 주석 해제)
+            // Minimum gap (minGap) check (uncomment if needed)
             // if (now - lastTrig >= minGap)
             // {
             //     TriggerHaptic();
@@ -78,25 +78,25 @@ public class BeatHapticSync : MonoBehaviour
             var line = raw.Trim();
             if (string.IsNullOrEmpty(line)) continue;
 
-            // 첫 컬럼만 사용 (쉼표/세미콜론/탭 모두 대응)
+            // Use only the first column (comma / semicolon / tab supported)
             var parts = line.Split(new[] { ',', ';', '\t' }, System.StringSplitOptions.RemoveEmptyEntries);
             if (parts.Length == 0) continue;
 
-            // 헤더 회피: 숫자가 아니면 스킵
+            // Skip header: ignore non-numeric values
             if (!float.TryParse(parts[0], NumberStyles.Float, CultureInfo.InvariantCulture, out float t))
                 continue;
 
-            // ✅ CSV는 '초' 단위라고 가정 — 추가 변환 없음
+            // CSV is assumed to be in seconds — no additional conversion
             beatTimes.Add(t);
         }
 
         beatTimes.Sort();
         currentIndex = 0;
 
-        // 디버그: 어느 CSV를 불렀고 앞부분 값은 어떤지
+        // Debug: which CSV was loaded and a preview of the first values
         int n = Mathf.Min(5, beatTimes.Count);
         string preview = n > 0 ? string.Join(", ", beatTimes.GetRange(0, n).ConvertAll(v => v.ToString("F3"))) : "(none)";
-        Debug.Log($"✅ 비트 시점 {beatTimes.Count}개 불러옴 (csv='{csvFile?.name}', unit=seconds); first=[{preview}]");
+        Debug.Log($"Loaded {beatTimes.Count} beat timestamps (csv='{csvFile?.name}', unit=seconds); first=[{preview}]");
     }
 
     public void SetCSV(TextAsset newCsv)
@@ -109,16 +109,17 @@ public class BeatHapticSync : MonoBehaviour
     void TriggerHaptic()
     {
         int[] motors = new int[32] {
-            0,0,0,0,0,100,100,0, 0,0,0,0,0,0,0,0,
+            0,0,0,0,0,90,90,0, 0,0,0,0,0,0,0,0,
             0,0,0,0,0,0,0,0,  0,0,0,0,0,0,0,0
-        };
-        BhapticsLibrary.PlayMotors((int)PositionType.Vest, motors, 100);
-        Debug.Log($"💥 진동 at {videoPlayer.time:F2}s (offset={offsetSeconds*1000f:F0}ms)");
+        }; // Motors array defines per-actuator intensity (0–100); 90 indicates strong vibration.
+        BhapticsLibrary.PlayMotors((int)PositionType.Vest, motors, 100); 
+        // The final argument (100) sets the vibration duration in milliseconds (100 ms pulse)
+        Debug.Log($"Haptic triggered at {videoPlayer.time:F2}s (offset={offsetSeconds*1000f:F0}ms)");
     }
 
     public void ResetSync()
     {
         currentIndex = 0;
-        Debug.Log("🔄 BeatHapticSync 인덱스 리셋");
+        Debug.Log("BeatHapticSync index reset");
     }
 }

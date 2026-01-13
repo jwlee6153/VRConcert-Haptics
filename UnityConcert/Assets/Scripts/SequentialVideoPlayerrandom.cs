@@ -1,4 +1,6 @@
-// SequentialVideoPlayerrandom.cs — PUNCH_CUT 전용
+// Generic video–haptics playback script.
+// "LOVEDIVE.mp4" is used as an example.
+// Replace the video file name and CSV to use a different song.
 using System;
 using System.IO;
 using UnityEngine;
@@ -9,11 +11,11 @@ public class SequentialVideoPlayerrandom : MonoBehaviour
     public VideoPlayer videoPlayer;
     public BeatHapticRandomWindows haptics;
 
-    [Header("CSV (PUNCH)")]
-    public TextAsset punchCsv;   // Inspector에서 PUNCH CSV 드래그
+    [Header("CSV")]
+    public TextAsset csvFile;   // Beat timestamps (seconds), header allowed
 
-    [Header("Playlist (StreamingAssets 기준 파일명)")]
-    public string[] videoFileNames = { "resting.mp4", "PUNCH_CUT.mp4", "resting.mp4" };
+    [Header("Playlist (StreamingAssets file names)")]
+    public string[] videoFileNames = { "resting.mp4", "LOVEDIVE.mp4", "resting.mp4" };
 
     private int currentIndex = 0;
 
@@ -22,9 +24,9 @@ public class SequentialVideoPlayerrandom : MonoBehaviour
     [SerializeField] private float quitDelay = 0.25f;
 
     [Header("Haptic Config")]
-    public float oneBarSec = 1.8f;        // 한 마디 길이(초)
-    public float targetDurationSec = 73.63f; // 코러스 총 길이(초) — 필요시 조절
-    public int regionSeed = 0;             // 시드(0이면 매번 랜덤, 고정하면 재현 가능)
+    public float oneBarSec = 1.8f;            // One bar length (seconds)
+    public float targetDurationSec = 73.63f;  // Target section duration (seconds) — adjust if needed
+    public int regionSeed = 0;                // Seed (0 = random each run; set a fixed value for reproducibility)
 
     void Start()
     {
@@ -47,7 +49,7 @@ public class SequentialVideoPlayerrandom : MonoBehaviour
     {
         if (currentIndex >= videoFileNames.Length)
         {
-            Debug.Log("✅ 모든 영상 재생 완료");
+            Debug.Log("All videos finished playing.");
             Invoke(nameof(QuitApp), quitDelay);
             return;
         }
@@ -60,7 +62,7 @@ public class SequentialVideoPlayerrandom : MonoBehaviour
         videoPlayer.Prepare();
         videoPlayer.prepareCompleted += OnVideoPrepared;
 
-        Debug.Log($"▶ 준비 중: {filename} | url={path}");
+        Debug.Log($"▶ Preparing: {filename} | url={path}");
     }
 
     void OnVideoPrepared(VideoPlayer vp)
@@ -69,19 +71,19 @@ public class SequentialVideoPlayerrandom : MonoBehaviour
         videoPlayer.Play();
 
         string just = Path.GetFileName(videoPlayer.url);
-        bool isPunch = just.Equals("PUNCH_CUT.mp4", StringComparison.OrdinalIgnoreCase);
+        bool isLovedive = just.Equals("LOVEDIVE.mp4", StringComparison.OrdinalIgnoreCase);
 
         if (haptics)
         {
             if (haptics.videoPlayer != videoPlayer)
                 haptics.videoPlayer = videoPlayer;
 
-            if (isPunch)
+            if (isLovedive)
             {
-                if (punchCsv) haptics.SetCSV(punchCsv);
+                if (csvFile) haptics.SetCSV(csvFile);
                 haptics.Rebuild(oneBarSec, targetDurationSec, regionSeed);
                 haptics.enabled = true;
-                Debug.Log("✅ Haptics ENABLED (PUNCH)");
+                Debug.Log("Haptics ENABLED (LOVEDIVE)");
             }
             else
             {
@@ -102,7 +104,7 @@ public class SequentialVideoPlayerrandom : MonoBehaviour
 
     void OnVideoError(VideoPlayer vp, string msg)
     {
-        Debug.LogWarning($"[SVP] Video error: {msg} → 다음으로 진행");
+        Debug.LogWarning($"[SVP] Video error: {msg} → Moving to the next video.");
         currentIndex++;
         if (currentIndex < videoFileNames.Length)
             Invoke(nameof(PlayCurrentVideo), nextDelay);

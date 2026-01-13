@@ -195,6 +195,8 @@ GameObject:
   - component: {fileID: 339313127}
   - component: {fileID: 339313130}
   - component: {fileID: 339313129}
+  - component: {fileID: 339313132}
+  - component: {fileID: 339313131}
   m_Layer: 0
   m_Name: Videomanage
   m_TagString: Untagged
@@ -267,7 +269,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   videoPlayer: {fileID: 339313127}
   beatHapticSync: {fileID: 339313130}
-  dumCsv: {fileID: 4900000, guid: efbc305acea057e41a677e9d57a18fcc, type: 3}
+  csvFile: {fileID: 4900000, guid: fd62f583f4b71de418387ad56d3c6093, type: 3}
   nextDelay: 0.5
   quitDelay: 0.25
 --- !u!114 &339313130
@@ -283,10 +285,61 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   videoPlayer: {fileID: 339313127}
-  csvFile: {fileID: 4900000, guid: efbc305acea057e41a677e9d57a18fcc, type: 3}
+  csvFile: {fileID: 4900000, guid: fd62f583f4b71de418387ad56d3c6093, type: 3}
   offsetSeconds: 0
   syncThreshold: 0.04
   minGap: 0.12
+--- !u!114 &339313131
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 339313124}
+  m_Enabled: 0
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: fcee75fc13af2ca49ad7c0f7ab045349, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  videoPlayer: {fileID: 339313127}
+  haptics: {fileID: 339313132}
+  csvFile: {fileID: 0}
+  videoFileNames:
+  - resting.mp4
+  - LOVEDIVE.mp4
+  - resting.mp4
+  nextDelay: 0.5
+  quitDelay: 0.25
+  oneBarSec: 1.8
+  targetDurationSec: 73.63
+  regionSeed: 0
+--- !u!114 &339313132
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 339313124}
+  m_Enabled: 0
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: c993b6b4aeeab124387ad0b820a8a6ad, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  videoPlayer: {fileID: 339313127}
+  csvFile: {fileID: 4900000, guid: 32bf50ecc8af20a468bb45b002af2312, type: 3}
+  offsetSeconds: 0
+  syncThreshold: 0.04
+  oneBarSec: 1.8
+  totalDurationSec: 0
+  targetDurationSec: 73.63
+  minWindowSec: 0.5
+  regionSeed: 0
+  minWindows: 3
+  minGap: 0.12
+  enableLogging: 1
+  logPrefix: haptic
+  exportToMediaOnQuit: 1
+  maxIterations: 200
 --- !u!1 &705507993
 GameObject:
   m_ObjectHideFlags: 0
