@@ -1,3 +1,7 @@
+
+// Generic video–haptics playback script.
+// "LOVEDIVE.mp4" is used as an example.
+// Replace the video file name and CSV to use a different song.
 using System;
 using System.IO;
 using UnityEngine;
@@ -8,18 +12,18 @@ public class SequentialVideoPlayer : MonoBehaviour
     public VideoPlayer videoPlayer;
     public BeatHapticSync beatHapticSync;
 
-    [Header("CSV (DUM)")]
-    public TextAsset dumCsv; // 인스펙터에 DUM CSV 지정
+    [Header("CSV")]
+    public TextAsset csvFile; // Beat timestamps (seconds), header allowed
 
     [Header("Playlist")]
-    [Tooltip("재생할 비디오 파일들 (StreamingAssets 기준)")]
-    private string[] videoFileNames = { "resting.mp4", "DUM_CUT.mp4", "resting.mp4" };
+    [Tooltip("Video files to play (relative to StreamingAssets)")]
+    private string[] videoFileNames = { "resting.mp4", "LOVEDIVE.mp4", "resting.mp4" };
 
     private int currentIndex = 0;
 
     [Header("Delays")]
-    [SerializeField] private float nextDelay = 0.5f;  // 다음 영상 재생 전 여유
-    [SerializeField] private float quitDelay = 0.25f; // 종료 전 짧은 여유
+    [SerializeField] private float nextDelay = 0.5f;  // Small buffer before playing the next video
+    [SerializeField] private float quitDelay = 0.25f; // Small buffer before quitting
 
     void Start()
     {
@@ -29,7 +33,7 @@ public class SequentialVideoPlayer : MonoBehaviour
             return;
         }
 
-        // BeatHapticSync가 같은 VideoPlayer를 보도록 보장
+        // Ensure BeatHapticSync references the same VideoPlayer
         if (beatHapticSync && beatHapticSync.videoPlayer != videoPlayer)
             beatHapticSync.videoPlayer = videoPlayer;
 
@@ -44,7 +48,7 @@ public class SequentialVideoPlayer : MonoBehaviour
     {
         if (currentIndex >= videoFileNames.Length)
         {
-            Debug.Log("✅ 모든 영상 재생 완료");
+            Debug.Log(" All videos finished playing.");
             Invoke(nameof(QuitApp), quitDelay);
             return;
         }
@@ -52,7 +56,7 @@ public class SequentialVideoPlayer : MonoBehaviour
         string filename = videoFileNames[currentIndex];
         string path = Path.Combine(Application.streamingAssetsPath, filename);
 
-        // 중복 등록 방지
+        // Prevent duplicate subscription
         videoPlayer.prepareCompleted -= OnVideoPrepared;
 
         videoPlayer.url = path;
@@ -60,7 +64,7 @@ public class SequentialVideoPlayer : MonoBehaviour
         videoPlayer.Prepare();
         videoPlayer.prepareCompleted += OnVideoPrepared;
 
-        Debug.Log($"▶ 준비 중: {filename} | url={path}");
+        Debug.Log($"▶ Preparing: {filename} | url={path}");
     }
 
     void OnVideoPrepared(VideoPlayer vp)
@@ -70,22 +74,22 @@ public class SequentialVideoPlayer : MonoBehaviour
 
         string full = videoPlayer.url ?? "";
         string just = Path.GetFileName(full);
-        bool isDum = just.Equals("DUM_CUT.mp4", StringComparison.OrdinalIgnoreCase);
+        bool isLovedive = just.Equals("LOVEDIVE.mp4", StringComparison.OrdinalIgnoreCase);
 
-        Debug.Log($"▶ 재생 시작: full='{full}', file='{just}', isDum={isDum}");
+        Debug.Log($"▶ Playback started: full='{full}', file='{just}', isLovedive={isLovedive}");
 
         if (beatHapticSync)
         {
-            // 항상 같은 VP 참조 보장
+            // Ensure the same VideoPlayer reference
             if (beatHapticSync.videoPlayer != videoPlayer)
                 beatHapticSync.videoPlayer = videoPlayer;
 
-            if (isDum)
+            if (isLovedive)
             {
-                if (dumCsv) beatHapticSync.SetCSV(dumCsv); // ★ DUM CSV 보장
+                if (csvFile) beatHapticSync.SetCSV(csvFile); // Ensure LOVEDIVE CSV is used
                 beatHapticSync.enabled = true;
                 beatHapticSync.ResetSync();
-                Debug.Log("✅ BeatHapticSync ENABLED (DUM)");
+                Debug.Log(" BeatHapticSync ENABLED (LOVEDIVE)");
             }
             else
             {
@@ -104,14 +108,14 @@ public class SequentialVideoPlayer : MonoBehaviour
         }
         else
         {
-            Debug.Log("✅ 모든 영상 재생 완료");
+            Debug.Log(" All videos finished playing.");
             Invoke(nameof(QuitApp), quitDelay);
         }
     }
 
     void OnVideoError(VideoPlayer vp, string msg)
     {
-        Debug.LogWarning($"[SVP] Video error: {msg} → 다음으로 진행");
+        Debug.LogWarning($"[SVP] Video error: {msg} → Moving to the next video.");
         currentIndex++;
         if (currentIndex < videoFileNames.Length)
         {
