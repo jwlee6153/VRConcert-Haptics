@@ -1,9 +1,9 @@
 // BeatHapticRandomWindows.cs
 // - no maxWindows
-// - SetCSV / Rebuild 제공
-// - maxIterations 가드
-// - minWindows 보장
-// - 로그: 실행마다 타임스탬프 파일명 + (옵션) 종료 시 /Android/media 로 자동 백업
+// - provides SetCSV / Rebuild
+// - maxIterations guard
+// - guarantees minWindows
+// - log: timestamped filename per run + (optional) auto-backup to /Android/media on quit
 
 using System;
 using System.Collections.Generic;
@@ -18,38 +18,38 @@ public class BeatHapticRandomWindows : MonoBehaviour
 {
     [Header("Video / CSV")]
     public VideoPlayer videoPlayer;
-    public TextAsset csvFile; // 비트 타임스탬프(초) CSV (헤더 가능)
+    public TextAsset csvFile; // Beat timestamps (sec) CSV (header allowed)
 
     [Header("Timing")]
-    public float offsetSeconds = 0f;      // 오프셋 (초 단위)
-    public float syncThreshold = 0.04f;   // 동기화 허용 오차 (초)
+    public float offsetSeconds = 0f;      // Offset (seconds)
+    public float syncThreshold = 0.04f;   // Sync tolerance (seconds)
 
     [Header("Bar / Gaps")]
-    public float oneBarSec = 1.8f;        // 1마디 길이 (초)
-    public float totalDurationSec = 0f;   // 전체 길이 추정 (0이면 자동)
+    public float oneBarSec = 1.8f;        // One-bar length (seconds)
+    public float totalDurationSec = 0f;   // Estimated total duration (0 = auto)
 
     [Header("Random Windows")]
-    public float targetDurationSec = 73.63f; // 코러스 총 DURATION(초)
-    public float minWindowSec = 0.5f;        // 개별 윈도우 최소 길이(초)
-    public int regionSeed = 0;               // 시드 (0이면 매 실행 랜덤)
-    [Tooltip("랜덤 윈도우 최소 개수(분할/추가로 보장)")]
+    public float targetDurationSec = 73.63f; // Total chorus duration (sec): varies by song
+    public float minWindowSec = 0.5f;        // Minimum length per window (sec)
+    public int regionSeed = 0;               // Seed (0 = random each run)
+    [Tooltip("Minimum number of random windows (guaranteed via split/add)")]
     public int minWindows = 3;
 
     [Header("Haptics")]
-    public float minGap = 0.12f;             // 트리거 최소 간격(초)
+    public float minGap = 0.12f;             // Minimum trigger interval (sec)
 
     [Header("Logging (timestamp)")]
     public bool enableLogging = true;
-    [Tooltip("로그 파일 프리픽스 (예: 'haptic' → haptic_YYYYMMDD_HHMMSS.csv)")]
+    [Tooltip("Log file prefix (e.g., 'haptic' → haptic_YYYYMMDD_HHMMSS.csv)")]
     public string logPrefix = "haptic";
-    [Tooltip("앱 종료 시 /sdcard/Android/media/<pkg>/exports/logs 로 자동 백업")]
+    [Tooltip("Auto-backup on quit to /sdcard/Android/media/<pkg>/exports/logs")]
     public bool exportToMediaOnQuit = true;
 
     [Header("Generation Guardrail")]
-    [Tooltip("랜덤 윈도우 생성 반복 상한")]
+    [Tooltip("Upper bound on random window generation iterations")]
     public int maxIterations = 200;
 
-    // 내부 상태
+    // Internal state
     private readonly List<float> beatTimes = new();
     private List<Vector2> allowedSegments = new();
     private List<Vector2> randomWindows = new();
@@ -57,7 +57,7 @@ public class BeatHapticRandomWindows : MonoBehaviour
     private int currentIndex = 0;
     private float lastTrig = -999f;
 
-    // 로그
+    // Log
     private StreamWriter logWriter;
     private string logPath;
     private string logStamp; // yyyyMMdd_HHmmss
@@ -69,7 +69,7 @@ public class BeatHapticRandomWindows : MonoBehaviour
         BuildAllowedSegments();
         BuildRandomWindowsAndPlayTimes();
         InitLog();
-        enabled = false; // 외부(SequentialVideoPlayer 등)에서 켜줌
+        enabled = false; // Enabled externally (SequentialVideoPlayer, etc.)
     }
 
     void Update()
@@ -77,7 +77,7 @@ public class BeatHapticRandomWindows : MonoBehaviour
         if (!videoPlayer || !videoPlayer.isPlaying || playTimes.Count == 0) return;
         float now = (float)videoPlayer.time + offsetSeconds;
 
-        // 이미 지난 비트 스킵
+        // Skip past beats
         while (currentIndex < playTimes.Count && playTimes[currentIndex] < now - syncThreshold)
             currentIndex++;
         if (currentIndex >= playTimes.Count) return;
@@ -112,7 +112,7 @@ public class BeatHapticRandomWindows : MonoBehaviour
     }
 
     /// <summary>
-    /// 외부에서 1마디/타겟/시드 바꿔 재구성
+    /// Rebuild by changing bar length / target / seed externally
     /// </summary>
     public void Rebuild(float newOneBarSec, float newTargetDuration, int newSeed = -1)
     {
@@ -140,10 +140,10 @@ public class BeatHapticRandomWindows : MonoBehaviour
                 beatTimes.Add(t);
         }
         beatTimes.Sort();
-        Debug.Log($"✅ Beats loaded: {beatTimes.Count}");
+        Debug.Log($"Beats loaded: {beatTimes.Count}");
     }
 
-    // ===== 허용 구간 =====
+    // ===== Allowed segments =====
     void BuildAllowedSegments()
     {
         float total = EstimateTotalDuration();
@@ -151,17 +151,17 @@ public class BeatHapticRandomWindows : MonoBehaviour
         Debug.Log($"[Allowed] segs={allowedSegments.Count}, dur={SumDuration(allowedSegments):F2}");
     }
 
-    // ===== 랜덤 윈도우 & 플레이타임 =====
+    // ===== Random windows & play times =====
     void BuildRandomWindowsAndPlayTimes()
     {
-        // target이 허용합보다 크면 클램프
+        // Clamp target to allowed sum
         float allowedSum = SumDuration(allowedSegments);
         float target = Mathf.Min(targetDurationSec, Mathf.Max(0f, allowedSum));
 
         randomWindows = SampleRandomWindowsMatchingDuration_NoMax(
             allowedSegments, target, minWindowSec, regionSeed, maxIterations);
 
-        // 최소 개수 보장: 분할/추가로 minWindows까지 맞추기
+        // Guarantee minimum count up to minWindows via split/add
         randomWindows = EnforceMinWindows(
             randomWindows, allowedSegments, Mathf.Max(1, minWindows), minWindowSec, target, regionSeed
         );
@@ -180,16 +180,16 @@ public class BeatHapticRandomWindows : MonoBehaviour
         return totalDurationSec > 0f ? totalDurationSec : Mathf.Max(csvEnd + 5f, vpDur);
     }
 
-    // ===== 로깅 =====
+    // ===== Logging =====
     void InitLog()
     {
         if (!enableLogging) return;
 
-        string dir = Application.persistentDataPath; // 내부 (APK 삭제 시 함께 삭제)
+        string dir = Application.persistentDataPath; // Internal (removed with APK uninstall)
         Directory.CreateDirectory(dir);
 
         logStamp = DateTime.Now.ToString("yyyyMMdd_HHmmss");
-        // 실행마다 고유 파일명: haptic_YYYYMMDD_HHMMSS.csv
+        // Unique filename per run: haptic_YYYYMMDD_HHMMSS.csv
         logPath = Path.Combine(dir, $"{logPrefix}_{logStamp}.csv");
 
         logWriter = new StreamWriter(logPath, false, System.Text.Encoding.UTF8);
@@ -213,14 +213,14 @@ public class BeatHapticRandomWindows : MonoBehaviour
         }
     }
 
-    // ===== /sdcard/Android/media 로 안전 백업 =====
+    // ===== Safe backup to /sdcard/Android/media =====
     void TryExportLogToMedia(string srcFullPath)
     {
         try
         {
             if (string.IsNullOrEmpty(srcFullPath) || !File.Exists(srcFullPath)) return;
 
-            // APK 삭제 후에도 남는 위치
+            // Persists after APK uninstall
             string mediaDir = $"/sdcard/Android/media/{Application.identifier}/exports/logs";
             Directory.CreateDirectory(mediaDir);
 
@@ -234,8 +234,8 @@ public class BeatHapticRandomWindows : MonoBehaviour
         }
     }
 
-    // ===== 유틸 =====
-    // ≥ oneBarSec 이상 비는 모든 공백을 제외하고 허용구간만 반환
+    // ===== Utils =====
+    // Remove all gaps >= oneBarSec and return allowed segments
     static List<Vector2> BuildAllowedByRemovingLongGaps(List<float> ts, float total, float gapThr)
     {
         var excludes = new List<Vector2>();
@@ -247,7 +247,7 @@ public class BeatHapticRandomWindows : MonoBehaviour
         return ComplementIntervals(new Vector2(0, total), MergeIntervals(excludes));
     }
 
-    // === 핵심: maxWindows 없이 targetDuration을 채울 때까지 랜덤 윈도우 생성 (반복 상한만 가드) ===
+    // === Core: generate random windows until targetDuration is filled (iteration guard only) ===
     static List<Vector2> SampleRandomWindowsMatchingDuration_NoMax(
         List<Vector2> allowed, float target, float minLen, int seed, int maxIterations)
     {
@@ -261,16 +261,16 @@ public class BeatHapticRandomWindows : MonoBehaviour
 
         while (remain > 1e-3f && iters++ < Mathf.Max(1, maxIterations))
         {
-            // 길이: [minLen, remain] 균등
+            // Length: uniform in [minLen, remain]
             float len = Mathf.Clamp((float)rg.NextDouble() * remain, minLen, remain);
 
-            // 길이 맞는 후보 seg
+            // Candidate segments that fit the length
             var cands = allowed.Where(s => (s.y - s.x) >= len + 1e-4f).ToList();
             Vector2 baseSeg;
             if (cands.Count > 0) baseSeg = cands[rg.Next(cands.Count)];
             else
             {
-                // 전혀 없다면 가장 긴 seg에 클램프해서 넣기
+                // If none fit, clamp into the longest segment
                 baseSeg = allowed.OrderByDescending(s => s.y - s.x).First();
                 len = Mathf.Min(len, baseSeg.y - baseSeg.x);
                 if (len <= 1e-4f) break;
@@ -283,18 +283,18 @@ public class BeatHapticRandomWindows : MonoBehaviour
             var add = new Vector2(baseSeg.x + off, baseSeg.x + off + len);
             outSegs.Add(add);
 
-            // 병합 후 remain 갱신
+            // Merge and update remaining duration
             outSegs = MergeIntervals(outSegs);
             float cur = SumDuration(outSegs);
             remain = Mathf.Max(0f, target - cur);
         }
 
-        // 오버슈트면 살짝 컷 (가장 긴 세그먼트부터)
+        // If overshoot, slightly trim (from the longest segment first)
         float over = SumDuration(outSegs) - target;
         int safetyCut = 0;
         while (over > 1e-3f && safetyCut++ < 50 && outSegs.Count > 0)
         {
-            // 가장 긴 세그먼트 찾기
+            // Find longest segment
             int idx = 0;
             float bestLen = -1f;
             for (int i = 0; i < outSegs.Count; i++)
@@ -304,7 +304,7 @@ public class BeatHapticRandomWindows : MonoBehaviour
             }
 
             var s = outSegs[idx];
-            float cut = Mathf.Min(over, bestLen * 0.5f); // 가운데 남기고 양쪽 컷
+            float cut = Mathf.Min(over, bestLen * 0.5f); // Symmetric trim
             if (cut <= 1e-4f) break;
 
             float newX = s.x + cut * 0.5f;
@@ -370,7 +370,7 @@ public class BeatHapticRandomWindows : MonoBehaviour
         return s;
     }
 
-    // ===== minWindows 보장 유틸 =====
+    // ===== minWindows guarantee utils =====
     static List<Vector2> EnforceMinWindows(
         List<Vector2> windows,
         List<Vector2> allowed,
@@ -382,30 +382,30 @@ public class BeatHapticRandomWindows : MonoBehaviour
         var rng = new System.Random(seed == 0 ? UnityEngine.Random.Range(1, int.MaxValue) : seed);
         windows = MergeIntervals(windows);
 
-        // 1) 가장 긴 윈도우를 분할해서 개수 늘리기
+        // 1) Split the longest window to increase count
         int guard = 0;
         while (windows.Count < minWindows && guard++ < 100)
         {
             if (!TrySplitLongestWindow(windows, minLen))
-                break; // 분할 불가 → 추가 생성 시도
+                break; // Cannot split → try adding
             windows = MergeIntervals(windows);
         }
 
-        // 2) 그래도 부족하면 빈 구간에 minLen 윈도우 추가
+        // 2) If still insufficient, add minLen windows in free regions
         guard = 0;
         while (windows.Count < minWindows && guard++ < 100)
         {
             if (!TryAddSmallWindow(windows, allowed, minLen, rng))
-                break; // 더 이상 넣을 곳 없음
+                break; // No more space
             windows = MergeIntervals(windows);
         }
 
-        // 3) 총 길이가 타겟을 넘으면 가장 긴 세그먼트부터 잘라 맞춤
+        // 3) If total duration exceeds target, trim longest segments
         float over = SumDuration(windows) - target;
         int safetyCut = 0;
         while (over > 1e-3f && safetyCut++ < 50 && windows.Count > 0)
         {
-            // 가장 긴 세그먼트
+            // Longest segment
             int idx = 0; float best = -1f;
             for (int i = 0; i < windows.Count; i++)
             {
@@ -431,7 +431,7 @@ public class BeatHapticRandomWindows : MonoBehaviour
     {
         if (windows == null || windows.Count == 0) return false;
 
-        // 가장 긴 세그먼트 찾기
+        // Find longest segment
         int idx = 0; float best = -1f;
         for (int i = 0; i < windows.Count; i++)
         {
@@ -439,7 +439,7 @@ public class BeatHapticRandomWindows : MonoBehaviour
             if (L > best) { best = L; idx = i; }
         }
 
-        // 분할 가능한지 체크(분할 후 두 조각 모두 minLen 이상)
+        // Check if splittable (both halves >= minLen)
         if (best < 2f * minLen + 1e-4f) return false;
 
         var s = windows[idx];
@@ -448,10 +448,10 @@ public class BeatHapticRandomWindows : MonoBehaviour
         var left  = new Vector2(s.x, mid);
         var right = new Vector2(mid, s.y);
 
-        // 양쪽 길이가 minLen 이상인지 확인
+        // Verify both sides >= minLen
         if ((left.y - left.x) < minLen || (right.y - right.x) < minLen) return false;
 
-        // 교체
+        // Replace
         windows.RemoveAt(idx);
         windows.Add(left);
         windows.Add(right);
@@ -462,9 +462,9 @@ public class BeatHapticRandomWindows : MonoBehaviour
     {
         if (allowed == null || allowed.Count == 0) return false;
 
-        // 현재 윈도우를 제외한 "가용 구간" 계산 (allowed - windows)
+        // Compute free regions (allowed - windows)
         var free = ComplementIntervalsMulti(allowed, MergeIntervals(windows));
-        // 길이가 충분한 free seg 만 후보로
+        // Only free segments with sufficient length
         var cands = free.Where(s => (s.y - s.x) >= minLen + 1e-4f).ToList();
         if (cands.Count == 0) return false;
 
@@ -476,16 +476,16 @@ public class BeatHapticRandomWindows : MonoBehaviour
         return true;
     }
 
-    // allowed 여러 구간에서 subs(이미 사용중인 윈도우) 를 빼서 free를 계산
+    // Subtract subs (already used windows) from allowed segments to compute free regions
     static List<Vector2> ComplementIntervalsMulti(List<Vector2> allowed, List<Vector2> subs)
     {
         var free = new List<Vector2>();
         var mergedSubs = MergeIntervals(subs);
         foreach (var a in allowed)
         {
-            // a 구간에서 subs를 빼기
+            // Subtract subs from segment a
             var insideSubs = mergedSubs
-                .Where(s => s.x < a.y && s.y > a.x) // 교차
+                .Where(s => s.x < a.y && s.y > a.x) // intersection
                 .Select(s => new Vector2(Mathf.Max(s.x, a.x), Mathf.Min(s.y, a.y)))
                 .ToList();
             var comp = ComplementIntervals(a, MergeIntervals(insideSubs));
@@ -494,22 +494,23 @@ public class BeatHapticRandomWindows : MonoBehaviour
         return MergeIntervals(free);
     }
 
-    // ===== 해프틱 트리거 =====
+    // ===== Haptic trigger =====
     void TriggerHaptic()
     {
         int[] motors = new int[32] {
             0,0,0,0,0,90,90,0, 0,0,0,0,0,0,0,0,
             0,0,0,0,0,0,0,0,  0,0,0,0,0,0,0,0
-        };
-        BhapticsLibrary.PlayMotors((int)PositionType.Vest, motors, 100);
+        }; // Motors array defines per-actuator intensity (0–100); 90 indicates strong vibration.
+        BhapticsLibrary.PlayMotors((int)PositionType.Vest, motors, 100); 
+        // The final argument (100) sets the vibration duration in milliseconds (100 ms pulse)
 
         float real = Time.realtimeSinceStartup;
         float video = (float)videoPlayer.time;
         if (logWriter != null)
         {
             logWriter.WriteLine($"{real:F3},{video:F3},pulse,{currentIndex}");
-            logWriter.Flush(); // 이벤트마다 즉시 기록
+            logWriter.Flush(); // Immediate write per event
         }
-        Debug.Log($"💥 Haptic at {video:F2}s");
+        Debug.Log($"Haptic at {video:F2}s");
     }
 }
